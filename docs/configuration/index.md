@@ -67,6 +67,20 @@ If you leave it empty, Sink may invent a random password at build time that can 
 
 Also bind `ANALYTICS`. Add `R2` for [backups](/features/backups), `AI` for [Workers AI](/features/ai). Token steps: [Analytics](/features/analytics).
 
+## Dashboard login verification
+
+Dashboard login uses the existing Turnstile widget `0x4AAAAAAFqooGiVlr3WrzGw`. The challenge starts only after selecting **Log in** (or submitting the form with Enter), not when opening the login page. The backend verifies the token before checking the site token. A missing secret, failed or expired challenge, unexpected action or hostname, or unavailable Siteverify endpoint prevents login.
+
+- `TURNSTILE_SECRET` — **Runtime, encrypted secret.** The secret belonging to the existing widget. Set it in Worker or Pages **Settings → Variables and Secrets**, never in public variables or tracked files. `NUXT_TURNSTILE_SECRET` is also supported.
+- `NUXT_TURNSTILE_HOSTNAMES` — **Required at runtime, no default.** Comma-separated exact frontend hostnames allowed in Siteverify responses, such as `links.example.com,short.example.org`. An unset or empty allowlist prevents login with HTTP 503. Do not include schemes, ports, paths, wildcards, or local hostnames in production.
+- `NUXT_PUBLIC_TURNSTILE_SITE_KEY` — **Build + Runtime.** Public widget key; defaults to `0x4AAAAAAFqooGiVlr3WrzGw`. Rebuild after changing it.
+
+The widget must allow every frontend hostname used by the deployment in Cloudflare's hostname configuration. The backend allowlist uses exact matching: list each hostname explicitly, even if Cloudflare allows it through a parent domain. For local development, allow `localhost` and `127.0.0.1` on the widget and set `NUXT_TURNSTILE_HOSTNAMES=localhost,127.0.0.1` locally only. Do not recreate the widget or rotate its key to obtain the secret.
+
+Login submits `cf-turnstile-response` to `POST /api/verify`. The backend calls Cloudflare's canonical Siteverify endpoint and requires `success === true`, action `turnstile-spin-v2`, and a hostname in the deployment allowlist. Each attempt needs a fresh token; failed attempts reset the widget. `GET /api/verify` remains the existing authentication-status check. Cloudflare Access and authenticated API/MCP clients keep their existing authentication behavior: this is a dashboard login challenge, not a replacement for API authentication or rate limiting.
+
+The automated tests mock Siteverify responses and use Cloudflare's public test secret, never a production secret. After configuring the real secret and deploying, validate one real browser login on each configured production hostname, reject a missing/invalid token, and confirm that replaying a consumed token fails. Cloudflare's dummy keys do not prove production hostname/action validation or single-use enforcement.
+
 ## Public overrides (only if you change defaults)
 
 On Workers, set the same value in Builds and runtime. On Pages, set once, then redeploy.

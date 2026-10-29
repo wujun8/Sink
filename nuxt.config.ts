@@ -16,6 +16,8 @@ export default defineNuxtConfig({
   css: ['@/assets/css/tailwind.css'],
   runtimeConfig: {
     siteToken: process.env.NUXT_SITE_TOKEN || randomBytes(32).toString('base64url'),
+    turnstileSecret: '',
+    turnstileHostnames: '',
     cfAccessTeamDomain: '',
     cfAccessAud: '',
     redirectStatusCode: '301',
@@ -40,6 +42,7 @@ export default defineNuxtConfig({
     webhookUrl: '',
     webhookSecret: '',
     public: {
+      turnstileSiteKey: '0x4AAAAAAFqooGiVlr3WrzGw',
       previewMode: '',
       slugDefaultLength: '6',
       kvBatchLimit: '50',

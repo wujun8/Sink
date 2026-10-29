@@ -3,12 +3,15 @@ import { AlertCircle, Loader2 } from '@lucide/vue'
 import { z } from 'zod'
 
 const { t } = useI18n()
-const { previewMode } = useRuntimeConfig().public
+const { previewMode, turnstileSiteKey } = useRuntimeConfig().public
 
 const token = shallowRef('')
 const error = shallowRef('')
 const submitError = shallowRef('')
 const isSubmitting = shallowRef(false)
+const isVerifying = shallowRef(false)
+const turnstileContainer = useTemplateRef('turnstileContainer')
+const turnstile = useTurnstile(turnstileContainer, turnstileSiteKey)
 
 const LoginSchema = z.object({
   token: z.string().min(1),
@@ -36,16 +39,27 @@ async function handleSubmit() {
 
   try {
     isSubmitting.value = true
-    setAuthToken(token.value)
-    await useAPI('/api/verify')
+    isVerifying.value = true
+    const challengeToken = await turnstile.execute()
+    isVerifying.value = false
+    await useAPI('/api/verify', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${result.data.token}` },
+      body: { 'cf-turnstile-response': challengeToken },
+      retry: 0,
+    })
+    setAuthToken(result.data.token)
     await navigateTo('/dashboard')
   }
   catch (e) {
     removeAuthToken()
     console.error(e)
-    submitError.value = t('login.failed')
+    const status = typeof e === 'object' && e !== null && 'status' in e ? e.status : undefined
+    submitError.value = t(isVerifying.value || status === 403 || status === 503 ? 'login.verification_failed' : 'login.failed')
   }
   finally {
+    turnstile.reset()
+    isVerifying.value = false
     isSubmitting.value = false
   }
 }
@@ -85,6 +99,14 @@ async function handleSubmit() {
       </Field>
     </FieldGroup>
 
+    <div
+      v-show="isSubmitting"
+      ref="turnstileContainer"
+      class="flex justify-center"
+      :data-sitekey="turnstileSiteKey"
+      data-action="turnstile-spin-v2"
+    />
+
     <Alert v-if="submitError" variant="destructive" role="alert">
       <AlertCircle aria-hidden="true" class="size-4" />
       <AlertTitle>{{ submitError }}</AlertTitle>
@@ -110,7 +132,7 @@ async function handleSubmit() {
       <Loader2
         v-if="isSubmitting" aria-hidden="true" class="motion-safe:animate-spin"
       />
-      {{ $t(isSubmitting ? 'login.logging_in' : 'login.submit') }}
+      {{ $t(isVerifying ? 'login.verifying' : isSubmitting ? 'login.logging_in' : 'login.submit') }}
     </Button>
   </form>
 </template>

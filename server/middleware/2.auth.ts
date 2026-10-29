@@ -4,6 +4,9 @@ export default eventHandler(async (event) => {
   if (!event.path.startsWith('/api/'))
     return
 
+  if (event.method === 'POST' && getRequestURL(event).pathname.replace(/\/+$/, '') === '/api/verify')
+    await verifyLoginTurnstile(event)
+
   const token = getHeader(event, 'Authorization')?.replace(/^Bearer\s+/, '')
   if (await verifySiteToken(token, useRuntimeConfig(event).siteToken)) {
     event.context.authMethod = 'site-token'
